@@ -1,0 +1,24 @@
+# systemd unit for the Discord Ops Bot.
+#
+# 1. Adjust User, WorkingDirectory, and ExecStart paths below.
+# 2. sudo cp ops-bot.service /etc/systemd/system/
+# 3. sudo systemctl daemon-reload
+# 4. sudo systemctl enable --now ops-bot
+#
+# Logs: journalctl -u ops-bot -f   (plus data/logs/opsbot.log)
+
+[Unit]
+Description=Discord Ops Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=miles
+WorkingDirectory=/home/miles/discord-ops-bot
+ExecStart=/home/miles/discord-ops-bot/.venv/bin/python bot.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,11 @@
+# Secrets — never commit the real token
+.env
+
+# Runtime data (database, logs)
+data/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
