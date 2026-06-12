@@ -2,10 +2,11 @@
 
 A multi-purpose utility and monitoring bot: website uptime monitoring with
 alerts, bug reports, suggestions with voting, a webhook sender, Steam update
-notifications, and weather — all as slash commands, backed by SQLite, with an
-optional read-only web dashboard.
+notifications, and weather — all as slash commands, backed by PostgreSQL, with
+an optional read-only web dashboard.
 
-Built with **discord.py 2.x**, `aiohttp`, and `aiosqlite`. Requires **Python 3.10+**.
+Built with **discord.py 2.x**, `aiohttp`, and `asyncpg`. Requires
+**Python 3.10+** and **PostgreSQL 12+**.
 
 ## Features
 
@@ -27,7 +28,8 @@ Built with **discord.py 2.x**, `aiohttp`, and `aiosqlite`. Requires **Python 3.1
 | `/botstatus` | Uptime, latency, and per-server statistics |
 
 Everything users submit (monitored sites, bug reports, suggestions, Steam
-watches) is persisted in SQLite at `data/opsbot.db`, so restarts lose nothing.
+watches) is persisted in a local PostgreSQL database (`opsbot`), so restarts
+lose nothing. See `DATABASE.md` for how to browse and query it.
 
 ## Project structure
 
@@ -46,12 +48,12 @@ discord-ops-bot/
 │   ├── steam.py           # /steam + /forceupdate + update loop
 │   └── weather.py         # /weather via wttr.in
 ├── utils/
-│   ├── database.py        # async SQLite layer (schema + helpers)
+│   ├── database.py        # async PostgreSQL layer (schema + helpers)
 │   ├── checks.py          # is_admin() permission check
 │   └── logging_setup.py   # console + rotating file logging
 ├── dashboard/
 │   └── app.py             # optional FastAPI read-only dashboard
-├── data/                  # created at runtime: opsbot.db, logs/ (gitignored)
+├── data/                  # created at runtime: logs/ (gitignored)
 ├── Dockerfile
 ├── docker-compose.yml
 └── ops-bot.service        # systemd unit template
@@ -74,12 +76,25 @@ discord-ops-bot/
    (That permission set is: View Channels, Send Messages, Embed Links,
    Add Reactions, Read Message History.)
 
-### 2. Configure
+### 2. Create the PostgreSQL database
+
+With a local PostgreSQL server running, create a role and database for the
+bot (one time, as the `postgres` superuser):
+
+```sql
+CREATE ROLE opsbot LOGIN PASSWORD 'your-password-here';
+CREATE DATABASE opsbot OWNER opsbot;
+```
+
+The bot creates/updates its own tables on startup — no manual schema setup.
+
+### 3. Configure
 
 ```bash
 cp .env.example .env
 # then edit .env:
 #   DISCORD_TOKEN  — required
+#   DATABASE_URL   — postgresql://opsbot:your-password-here@localhost:5432/opsbot
 #   GUILD_ID       — recommended: your server ID, so slash commands appear
 #                    instantly (global sync can take up to an hour)
 ```
@@ -87,7 +102,7 @@ cp .env.example .env
 Channel routing can be done entirely in Discord with `/setchannel` after the
 bot is running — the `*_CHANNEL_ID` values in `.env` are just fallbacks.
 
-### 3. Run locally (no Docker)
+### 4. Run locally (no Docker)
 
 ```bash
 python3 -m venv .venv
@@ -109,7 +124,7 @@ First steps in Discord:
 /weather
 ```
 
-### 4. Optional: web dashboard
+### 5. Optional: web dashboard
 
 ```bash
 source .venv/bin/activate
@@ -143,9 +158,10 @@ docker compose up -d            # starts the bot AND the dashboard on :8080
 docker compose logs -f opsbot
 ```
 
-The `./data` folder is mounted into the container, so the database and logs
-persist across rebuilds. If you don't want the dashboard, delete its block
-from `docker-compose.yml`.
+The `./data` folder is mounted into the container so logs persist across
+rebuilds. When the bot runs in Docker but PostgreSQL runs on the host, point
+`DATABASE_URL` at `host.docker.internal` instead of `localhost`. If you don't
+want the dashboard, delete its block from `docker-compose.yml`.
 
 ## How the monitoring works
 
@@ -174,6 +190,9 @@ from `docker-compose.yml`.
 
 ## Troubleshooting
 
+- **`connection refused` / `password authentication failed` on startup** —
+  make sure the PostgreSQL service is running on port 5432 and that
+  `DATABASE_URL` in `.env` has the right user, password, and database name.
 - **Slash commands don't appear** — set `GUILD_ID` in `.env` for instant
   sync to that server; global sync can take up to an hour. Also confirm the
   invite used the `applications.commands` scope.

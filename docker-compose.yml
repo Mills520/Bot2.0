@@ -1,3 +1,5 @@
+# PostgreSQL runs on the host — when these containers need it, set
+# DATABASE_URL's host to host.docker.internal instead of localhost.
 services:
   opsbot:
     build: .

@@ -90,7 +90,7 @@ class Admin(commands.Cog):
         sites = await self.bot.db.count_sites(interaction.guild_id)
         watches = len(await self.bot.db.list_steam_watches(interaction.guild_id))
         open_bugs = await self.bot.db.fetchone(
-            "SELECT COUNT(*) AS n FROM bug_reports WHERE guild_id = ? AND status = 'open'",
+            "SELECT COUNT(*) AS n FROM bug_reports WHERE guild_id = $1 AND status = 'open'",
             interaction.guild_id,
         )
 

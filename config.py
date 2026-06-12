@@ -45,6 +45,9 @@ SLOW_RESPONSE_MS = _env_int("SLOW_RESPONSE_MS", 2000)
 MAX_SITES_PER_GUILD = _env_int("MAX_SITES_PER_GUILD", 25)
 
 # --- Storage / logging ---------------------------------------------------
-DB_PATH = os.getenv("DB_PATH", "data/opsbot.db").strip()
+# PostgreSQL DSN: postgresql://USER:PASSWORD@HOST:PORT/DBNAME
+DATABASE_URL = os.getenv(
+    "DATABASE_URL", "postgresql://opsbot@localhost:5432/opsbot"
+).strip()
 LOG_FILE = os.getenv("LOG_FILE", "data/logs/opsbot.log").strip()
 LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").strip().upper()

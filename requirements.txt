@@ -1,7 +1,7 @@
 # Core bot
 discord.py>=2.4,<3.0
 aiohttp>=3.9
-aiosqlite>=0.20
+asyncpg>=0.30
 python-dotenv>=1.0
 
 # Optional web dashboard (run with: uvicorn dashboard.app:app)

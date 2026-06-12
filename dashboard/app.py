@@ -1,6 +1,7 @@
 """Read-only web dashboard for monitored sites, incidents, and bug reports.
 
-Runs as a separate process from the bot and only reads the SQLite database:
+Runs as a separate process from the bot and only reads the PostgreSQL
+database (its connections are forced read-only server-side):
 
     uvicorn dashboard.app:app --host 127.0.0.1 --port 8080
 
@@ -13,36 +14,43 @@ Endpoints:
 
 import html
 import os
-import sqlite3
 
+import asyncpg
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 
 load_dotenv()
-DB_PATH = os.getenv("DB_PATH", "data/opsbot.db")
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://opsbot@localhost:5432/opsbot")
 
 app = FastAPI(title="Ops Bot Dashboard")
 
+_pool: asyncpg.Pool | None = None
 
-def query(sql: str, args: tuple = ()) -> list[dict]:
-    """Run a read-only query; returns [] if the database doesn't exist yet."""
+
+async def query(sql: str, args: tuple = ()) -> list[dict]:
+    """Run a read-only query; returns [] if the database isn't reachable."""
+    global _pool
     try:
-        conn = sqlite3.connect(f"file:{DB_PATH}?mode=ro", uri=True)
-    except sqlite3.OperationalError:
+        if _pool is None:
+            _pool = await asyncpg.create_pool(
+                DATABASE_URL, min_size=1, max_size=4,
+                server_settings={"default_transaction_read_only": "on"},
+            )
+        return [dict(row) for row in await _pool.fetch(sql, *args)]
+    except (asyncpg.PostgresError, OSError):
         return []
-    conn.row_factory = sqlite3.Row
-    try:
-        return [dict(row) for row in conn.execute(sql, args).fetchall()]
-    except sqlite3.OperationalError:
-        return []
-    finally:
-        conn.close()
+
+
+@app.on_event("shutdown")
+async def close_pool() -> None:
+    if _pool is not None:
+        await _pool.close()
 
 
 @app.get("/api/sites")
-def api_sites() -> list[dict]:
-    return query(
+async def api_sites() -> list[dict]:
+    return await query(
         "SELECT guild_id, url, is_up, last_status_code, last_response_ms,"
         " avg_response_ms, consecutive_failures, last_checked"
         " FROM monitored_sites ORDER BY id"
@@ -50,8 +58,8 @@ def api_sites() -> list[dict]:
 
 
 @app.get("/api/incidents")
-def api_incidents() -> list[dict]:
-    return query(
+async def api_incidents() -> list[dict]:
+    return await query(
         "SELECT i.created_at, i.event, i.detail, s.url"
         " FROM site_incidents i JOIN monitored_sites s ON s.id = i.site_id"
         " ORDER BY i.id DESC LIMIT 50"
@@ -59,18 +67,18 @@ def api_incidents() -> list[dict]:
 
 
 @app.get("/api/bugs")
-def api_bugs() -> list[dict]:
-    return query(
+async def api_bugs() -> list[dict]:
+    return await query(
         "SELECT id, guild_id, user_name, title, severity, status, created_at"
         " FROM bug_reports WHERE status = 'open' ORDER BY id DESC LIMIT 50"
     )
 
 
 @app.get("/", response_class=HTMLResponse)
-def index() -> str:
-    sites = api_sites()
-    incidents = api_incidents()
-    bugs = api_bugs()
+async def index() -> str:
+    sites = await api_sites()
+    incidents = await api_incidents()
+    bugs = await api_bugs()
 
     def esc(value) -> str:
         return html.escape(str(value if value is not None else "—"))

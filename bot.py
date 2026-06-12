@@ -1,11 +1,10 @@
 """Discord Ops Bot — entry point.
 
-Starts the bot, opens the shared aiohttp session and SQLite database,
-loads every cog, and syncs slash commands.
+Starts the bot, opens the shared aiohttp session and the PostgreSQL
+connection pool, loads every cog, and syncs slash commands.
 """
 
 import logging
-import os
 import sys
 
 import aiohttp
@@ -47,7 +46,7 @@ class OpsBot(commands.Bot):
             intents=intents,
             help_command=None,
         )
-        self.db = Database(config.DB_PATH)
+        self.db = Database(config.DATABASE_URL)
         self.session: aiohttp.ClientSession | None = None
         self.started_at = discord.utils.utcnow()
 
@@ -58,7 +57,7 @@ class OpsBot(commands.Bot):
             headers={"User-Agent": "discord-ops-bot/1.0"}
         )
         await self.db.connect()
-        log.info("Database ready at %s", config.DB_PATH)
+        log.info("PostgreSQL pool ready (schema ensured)")
 
         for cog in COGS:
             await self.load_extension(cog)
@@ -152,8 +151,6 @@ def main() -> None:
     if not config.DISCORD_TOKEN:
         log.critical("DISCORD_TOKEN is not set. Copy .env.example to .env and fill it in.")
         sys.exit(1)
-
-    os.makedirs(os.path.dirname(config.DB_PATH) or ".", exist_ok=True)
 
     bot = OpsBot()
     # log_handler=None: we already configured logging ourselves
