@@ -70,6 +70,10 @@ class OpsBot(commands.Bot):
             self.tree.copy_global_to(guild=guild)
             synced = await self.tree.sync(guild=guild)
             log.info("Synced %d commands to guild %d", len(synced), config.GUILD_ID)
+            # Guild-only mode: wipe any global registrations so stale commands
+            # from earlier global syncs don't linger in Discord's picker.
+            self.tree.clear_commands(guild=None)
+            await self.tree.sync()
         else:
             synced = await self.tree.sync()
             log.info(
