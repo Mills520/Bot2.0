@@ -26,6 +26,7 @@ COGS = [
     "cogs.suggestions",
     "cogs.steam",
     "cogs.weather",
+    "cogs.breachcheck",
 ]
 
 # .env fallbacks used when a guild hasn't run /setchannel
